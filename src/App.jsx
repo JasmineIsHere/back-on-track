@@ -7,14 +7,16 @@ function App() {
 
   return (
     <>
-    <NavBar />
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<div className="App">Hello, World!</div>} />
         <Route path="/habits" element={<HabitsPage />} />
         <Route path="/flashcards" element={<FlashCardsPage />} />
       </Routes>
+            <NavBar />
+
     </BrowserRouter>
+
     </> 
   )
 }

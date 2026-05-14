@@ -1,10 +1,13 @@
 import React from 'react'
-import { NavBarContainer } from '.'
+import { NavBarContainer, NavButton } from '.'
+import { Link } from 'react-router-dom'
 
 const NavBar = () => {
   return (
     <NavBarContainer>
-      hello
+        <NavButton to="/">Home</NavButton>
+        <NavButton to="/habits">Habits</NavButton>
+        <NavButton to="/flashcards">Flashcards</NavButton>
     </NavBarContainer>
   )
 }
