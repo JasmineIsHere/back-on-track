@@ -1,15 +1,23 @@
-import React from 'react'
-import { NavBarContainer, NavButton } from '.'
-import { Link } from 'react-router-dom'
+import { NavBarContainer, NavButton } from "./index";
+import { TbCards, TbChecklist, TbHome } from "react-icons/tb";
 
 const NavBar = () => {
   return (
     <NavBarContainer>
-        <NavButton to="/">Home</NavButton>
-        <NavButton to="/habits">Habits</NavButton>
-        <NavButton to="/flashcards">Flashcards</NavButton>
+      <NavButton to="/">
+        <TbHome />
+        Home
+      </NavButton>
+      <NavButton to="/habits">
+        <TbChecklist />
+        Habits
+      </NavButton>
+      <NavButton to="/flashcards">
+        <TbCards />
+        Flashcards
+      </NavButton>
     </NavBarContainer>
-  )
-}
+  );
+};
 
-export default NavBar
+export default NavBar;
