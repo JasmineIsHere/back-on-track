@@ -7,6 +7,7 @@ export const HeaderBarDiv = styled.div`
   gap: 0.5rem;
   padding: 2rem;
   background-color: ${(props) => props.theme.bgSecondary};
+  border: 1px solid ${(props) => props.theme.border};
 `;
 
 export const HeaderTitle = styled.h1`
@@ -18,4 +19,3 @@ export const HeaderSubtitle = styled.h2`
   font-size: 1rem;
   color: ${(props) => props.theme.textSecondary};
 `;
-
