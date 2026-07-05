@@ -34,7 +34,7 @@ The README specifies persistence via a custom `useLocalStorage` hook, and multip
 
 ## [BOT-002] Create Static Flashcard Data File
 
-**Status:** [x] In Progress
+**Status:** [x] Done
 **Priority:** High
 **Feature Area:** Flashcard Deck
 
