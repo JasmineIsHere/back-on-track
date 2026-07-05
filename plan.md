@@ -1,142 +1,67 @@
-# Implementation Plan: [BOT-001] Create useLocalStorage Custom Hook
+# Implementation Plan: [BOT-002] Create Static Flashcard Data File
 
-**Ticket:** BOT-001
-**Status:** Approved
-**Date:** 2026-06-30
+**Ticket:** BOT-002
+**Status:** Awaiting Review
+**Date:** 2026-07-05
 
 ## Summary
-Create a `useLocalStorage` custom hook in `src/hooks/useLocalStorage.js` that wraps `useState` with automatic JSON serialisation to and from `localStorage`. This is the foundational persistence primitive that all subsequent tickets (BOT-003 habit persistence, BOT-007 mood check-in) depend on.
+Create `src/data/flashcards.js` with a default-exported array of at least 20 flashcard objects covering React hooks, component lifecycle, JavaScript fundamentals, and async patterns. This is the pure data layer the flashcard UI (BOT-005) will consume — no logic, no imports.
 
 ## Files to Create
-- `src/hooks/useLocalStorage.js` — the custom hook; also implicitly creates the `src/hooks/` directory
+- `src/data/flashcards.js` — static flashcard data array; also implicitly creates the `src/data/` directory
 
 ## Files to Modify
 - None
 
 ## Implementation Steps
 
-1. **Create directory and file**: Create `src/hooks/useLocalStorage.js`.
+1. **Create the file**: Create `src/data/flashcards.js`.
 
-2. **Initialise state from localStorage**: Inside the hook, call `useState` with a lazy initialiser function. The initialiser reads `localStorage.getItem(key)`. If the item exists, parse it with `JSON.parse` and return it. If it does not exist (returns `null`), write `initialValue` to localStorage via `localStorage.setItem(key, JSON.stringify(initialValue))` and then return `initialValue`. Wrap both the read and write in a try/catch — if `JSON.parse` throws (invalid JSON) or `JSON.stringify` throws, fall back to returning `initialValue` without throwing.
+2. **Define the flashcard object shape**: Each object must have exactly four fields:
+   - `id`: unique string using a `topic-prefix-NNN` pattern (e.g. `'react-001'`, `'js-001'`)
+   - `question`: string — the question text shown on the card face
+   - `answer`: string — the answer text revealed on flip
+   - `topic`: string — must exactly match one of the topic strings from `FlashcardsPage.jsx`: `"React & JS deck"`, `"Java 21 deck"`, `"Data Structures deck"`, or `"Kubernetes deck"`
 
-3. **Write a `setValue` setter**: Define a `setValue` function (using `useCallback`) that accepts either a new value or an updater function (same API as the `useState` setter). Resolve the new value (call it if it's a function, passing the current stored value). Then call `JSON.stringify` on the new value and write it to `localStorage.setItem(key, ...)`. Then call the React state setter with the new value. Wrap in try/catch — if serialisation fails, still update React state without writing to localStorage.
+3. **Author at least 20 cards** all with `topic: "React & JS deck"`, distributed across these four categories:
+   - **React hooks** (≥ 7 cards): useState lazy initialiser, useEffect cleanup, useCallback memoisation, useMemo vs useCallback, useRef for DOM access, useReducer vs useState, useContext usage
+   - **Component lifecycle** (≥ 4 cards): mounting/updating/unmounting phases, when useEffect runs, StrictMode double-invoke, key prop and reconciliation
+   - **JavaScript fundamentals** (≥ 5 cards): closure definition, var/let/const scoping, hoisting, event loop and call stack, prototype chain
+   - **Async patterns** (≥ 4 cards): Promise states, async/await syntax, Promise.all vs Promise.allSettled, microtask vs macrotask queue
 
-4. **Return `[storedValue, setValue]`**: The return signature mirrors `useState` exactly.
-
-5. **Export as named export**: `export function useLocalStorage(key, initialValue) { ... }`
+4. **Export as default**: The last line of the file is `export default flashcards;` — no named exports, no imports.
 
 ## Code Shape
 
 ```js
-export function useLocalStorage(key, initialValue) {
-  const [storedValue, setStoredValue] = useState(() => {
-    try {
-      const item = window.localStorage.getItem(key);
-      if (item !== null) return JSON.parse(item);
-      window.localStorage.setItem(key, JSON.stringify(initialValue));
-      return initialValue;
-    } catch {
-      return initialValue;
-    }
-  });
+const flashcards = [
+  {
+    id: 'react-001',
+    question: 'What is the purpose of the useState hook?',
+    answer: 'useState lets a function component hold local state. It returns [currentValue, setter]. React schedules a re-render whenever the setter is called with a value that differs from the current one.',
+    topic: 'React & JS deck',
+  },
+  {
+    id: 'react-002',
+    question: 'Why pass a function to useState instead of a value — e.g. useState(() => compute()) instead of useState(compute())?',
+    answer: 'The function form is a lazy initialiser: React calls it only on the first render. The value form evaluates on every render, which wastes work if the initialisation is expensive (e.g. reading localStorage).',
+    topic: 'React & JS deck',
+  },
+  // ... 18+ more cards following the same shape
+];
 
-  const setValue = useCallback((value) => {
-    try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
-    } catch {
-      setStoredValue(value instanceof Function ? value(storedValue) : value);
-    }
-  }, [key, storedValue]);
-
-  return [storedValue, setValue];
-}
+export default flashcards;
 ```
 
 ## Patterns to Follow
-- **Pure logic hook** — no JSX, no styled-components; this file has no UI surface
-- **JavaScript only** — no TypeScript annotations per CLAUDE.md constraints
-- **No direct localStorage access in components** — this hook IS the single permitted access point; all future features must use it
-- **`useState` lazy initialiser** — use the function form `useState(() => ...)` to avoid reading localStorage on every render
+- **Pure data file** — no imports, no hooks, no JSX; this is a plain JS module with a single `const` and a default export
+- **JavaScript only** — no TypeScript per CLAUDE.md constraints
+- **No styled components** — data only, no UI surface
+- **Topic strings must exactly match** the hardcoded strings in `FlashcardsPage.jsx` (`"React & JS deck"` etc.) to enable filtering in BOT-005
 
 ## Out of Scope
-- Syncing across browser tabs (no `storage` event listener)
-- TTL / expiry logic
-- Any UI or styled component
-- AppContext (BOT-003)
-- Any feature that consumes this hook (BOT-003 through BOT-007)
-
----
-## Review
-
-**Reviewer:** Claude Code Reviewer Agent
-**Date:** 2026-06-30
-**Ticket:** BOT-001
-
-### Guardrail Results
-
-| ID | Category | Check | Result | Notes |
-|---|---|---|---|---|
-| SEC-1 | Security | No dangerouslySetInnerHTML | PASS | Pure JS hook, no JSX |
-| SEC-2 | Security | No eval() | PASS | Uses JSON.parse only |
-| SEC-3 | Security | No sensitive data in localStorage | PASS | Generic key/value utility, no PII mentioned |
-| SEC-4 | Security | No network requests | PASS | localStorage only |
-| COR-1 | Correctness | All acceptance criteria addressed | FAIL | Criterion 3 not met: "On first call with a new key, initialValue is written to localStorage and returned." Step 2 returns initialValue when the key is absent but does not call localStorage.setItem. The Code Shape confirms: `item !== null ? JSON.parse(item) : initialValue` — no write on first access. |
-| COR-2 | Correctness | No scope creep | PASS | Only the hook file is created |
-| COR-3 | Correctness | File paths valid | PASS | src/hooks/useLocalStorage.js matches CLAUDE.md planned structure |
-| PAT-1 | Patterns | Styled components in barrel | PASS | No styled components — pure logic hook |
-| PAT-2 | Patterns | No hardcoded colors | PASS | No colors or UI |
-| PAT-3 | Patterns | No TypeScript | PASS | Code Shape is plain JavaScript |
-| PAT-4 | Patterns | No external state libs | PASS | Only useState and useCallback from React |
-| PAT-5 | Patterns | localStorage via hook only | PASS | This file IS the hook; direct access is correct here |
-| PAT-6 | Patterns | No misused useEffect | PASS | No useEffect; uses useState lazy initialiser correctly |
-| SCO-1 | Scope | No extra features | PASS | Exactly one file, nothing beyond the hook |
-| SCO-2 | Scope | All files listed | PASS | src/hooks/useLocalStorage.js in Files to Create |
-| SCO-3 | Scope | No undisclosed packages | PASS | React built-ins only |
-
-### Verdict: FAIL
-
-The following issue must be resolved before implementation:
-
-1. **COR-1** — Step 2 describes reading `initialValue` from memory when a key is absent, but does not write it to localStorage. Acceptance criterion 3 explicitly requires: *"On first call with a new key, `initialValue` is written to localStorage and returned."* The fix: in the `useState` lazy initialiser, when `item === null`, call `window.localStorage.setItem(key, JSON.stringify(initialValue))` before returning `initialValue`. The corrected initialiser should be:
-   ```js
-   const item = window.localStorage.getItem(key);
-   if (item !== null) return JSON.parse(item);
-   window.localStorage.setItem(key, JSON.stringify(initialValue));
-   return initialValue;
-   ```
-
-Please review the issue above and tell me how you'd like to proceed before I revise the plan.
-
----
-## Review (Second Pass)
-
-**Reviewer:** Claude Code Reviewer Agent
-**Date:** 2026-07-05
-**Ticket:** BOT-001
-
-### Guardrail Results
-
-| ID | Category | Check | Result | Notes |
-|---|---|---|---|---|
-| SEC-1 | Security | No dangerouslySetInnerHTML | PASS | Pure JS hook, no JSX |
-| SEC-2 | Security | No eval() | PASS | Uses JSON.parse only |
-| SEC-3 | Security | No sensitive data in localStorage | PASS | Generic key/value utility, no PII mentioned |
-| SEC-4 | Security | No network requests | PASS | localStorage only |
-| COR-1 | Correctness | All acceptance criteria addressed | PASS | Fix applied: initialiser now calls `window.localStorage.setItem(key, JSON.stringify(initialValue))` before returning `initialValue` when key is absent |
-| COR-2 | Correctness | No scope creep | PASS | Only the hook file is created |
-| COR-3 | Correctness | File paths valid | PASS | src/hooks/useLocalStorage.js matches CLAUDE.md planned structure |
-| PAT-1 | Patterns | Styled components in barrel | PASS | No styled components — pure logic hook |
-| PAT-2 | Patterns | No hardcoded colors | PASS | No colors or UI |
-| PAT-3 | Patterns | No TypeScript | PASS | Code Shape is plain JavaScript |
-| PAT-4 | Patterns | No external state libs | PASS | Only useState and useCallback from React |
-| PAT-5 | Patterns | localStorage via hook only | PASS | This file IS the hook; direct access is correct here |
-| PAT-6 | Patterns | No misused useEffect | PASS | No useEffect; uses useState lazy initialiser correctly |
-| SCO-1 | Scope | No extra features | PASS | Exactly one file, nothing beyond the hook |
-| SCO-2 | Scope | All files listed | PASS | src/hooks/useLocalStorage.js in Files to Create |
-| SCO-3 | Scope | No undisclosed packages | PASS | React built-ins only |
-
-### Verdict: APPROVED
-
-All guardrails passed. Handing off to Developer for Phase 2 implementation.
+- Java 21, Data Structures, or Kubernetes decks — only "React & JS deck" is required by this ticket
+- Any changes to `FlashcardsPage.jsx` (BOT-005)
+- Wiring the data to any component (BOT-005)
+- AppContext or useLocalStorage (BOT-001 / BOT-003)
+- Pagination or difficulty levels
