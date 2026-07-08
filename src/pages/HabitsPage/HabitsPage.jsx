@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Container from "../../components/Container";
 import HeaderBar from "../../components/HeaderBar/HeaderBar";
+import { useAppContext } from "../../context/AppContext";
 import {
   CheckedIcon,
   HabitContainer,
@@ -13,9 +14,7 @@ import {
 } from ".";
 
 const HabitsPage = () => {
-  const [habits, setHabits] = useState([
-    { name: "Drink water", completed: true },
-  ]);
+  const { habits, setHabits } = useAppContext();
   const [newHabit, setNewHabit] = useState("");
 
   const handleInputChange = (e) => {
