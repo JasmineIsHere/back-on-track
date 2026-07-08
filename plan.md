@@ -1,99 +1,110 @@
-# Implementation Plan: [BOT-002] Create Static Flashcard Data File
+# Implementation Plan: [BOT-003] Create AppContext for Cross-Page Shared State
 
-**Ticket:** BOT-002
-**Status:** Approved
-**Date:** 2026-07-05
+**Ticket:** BOT-003
+**Status:** Awaiting Review
+**Date:** 2026-07-08
 
 ## Summary
-Create `src/data/flashcards.js` with a default-exported array of at least 20 flashcard objects covering React hooks, component lifecycle, JavaScript fundamentals, and async patterns. This is the pure data layer the flashcard UI (BOT-005) will consume — no logic, no imports.
+Create `src/context/AppContext.jsx` exporting `AppProvider` and `useAppContext`, lift `habits` (persisted via `useLocalStorage`) and `flashcardProgress` into shared context, wrap the app in `App.jsx`, and switch `HabitsPage` from local `useState` to `useAppContext` for habits.
 
 ## Files to Create
-- `src/data/flashcards.js` — static flashcard data array; also implicitly creates the `src/data/` directory
+- `src/context/AppContext.jsx` — AppProvider component and useAppContext hook; also implicitly creates the `src/context/` directory
 
 ## Files to Modify
-- None
+- `src/App.jsx` — import `AppProvider` and wrap `BrowserRouter` with it (inside `ThemeProvider`, outside `BrowserRouter`)
+- `src/pages/HabitsPage/HabitsPage.jsx` — replace local `useState` for `habits`/`setHabits` with `useAppContext()`
 
 ## Implementation Steps
 
-1. **Create the file**: Create `src/data/flashcards.js`.
+1. **Create `src/context/AppContext.jsx`**:
+   - Import `createContext`, `useContext`, `useState` from `'react'`
+   - Import `useLocalStorage` from `'../hooks/useLocalStorage'`
+   - Create `const AppContext = createContext(null)` (not exported — internal only)
+   - Define and export `AppProvider({ children })`:
+     - Call `useLocalStorage('habits', [])` to get `[habits, setHabits]` — this persists the habits array across page refreshes with an empty-array default
+     - Call `useState({ completed: 0, total: 0 })` to get `[flashcardProgress, setFlashcardProgress]` — flashcard progress is session-only (not persisted), default to zero counts
+     - Return `<AppContext.Provider value={{ habits, setHabits, flashcardProgress, setFlashcardProgress }}>{children}</AppContext.Provider>`
+   - Define and export `useAppContext()`:
+     - Call `useContext(AppContext)` and store the result
+     - If the result is `null`, throw `new Error('useAppContext must be used within an AppProvider')`
+     - Otherwise return the context value
 
-2. **Define the flashcard object shape**: Each object must have exactly four fields:
-   - `id`: unique string using a `topic-prefix-NNN` pattern (e.g. `'react-001'`, `'js-001'`)
-   - `question`: string — the question text shown on the card face
-   - `answer`: string — the answer text revealed on flip
-   - `topic`: string — must exactly match one of the topic strings from `FlashcardsPage.jsx`: `"React & JS deck"`, `"Java 21 deck"`, `"Data Structures deck"`, or `"Kubernetes deck"`
+2. **Modify `src/App.jsx`**:
+   - Add `import { AppProvider } from './context/AppContext'`
+   - Wrap the `<BrowserRouter>…</BrowserRouter>` block with `<AppProvider>…</AppProvider>`, keeping it inside `<ThemeProvider>` and outside `<BrowserRouter>`
+   - No other changes to `App.jsx`
 
-3. **Author at least 20 cards** all with `topic: "React & JS deck"`, distributed across these four categories:
-   - **React hooks** (≥ 7 cards): useState lazy initialiser, useEffect cleanup, useCallback memoisation, useMemo vs useCallback, useRef for DOM access, useReducer vs useState, useContext usage
-   - **Component lifecycle** (≥ 4 cards): mounting/updating/unmounting phases, when useEffect runs, StrictMode double-invoke, key prop and reconciliation
-   - **JavaScript fundamentals** (≥ 5 cards): closure definition, var/let/const scoping, hoisting, event loop and call stack, prototype chain
-   - **Async patterns** (≥ 4 cards): Promise states, async/await syntax, Promise.all vs Promise.allSettled, microtask vs macrotask queue
-
-4. **Export as default**: The last line of the file is `export default flashcards;` — no named exports, no imports.
+3. **Modify `src/pages/HabitsPage/HabitsPage.jsx`**:
+   - Add `import { useAppContext } from '../../context/AppContext'`
+   - Remove the line `const [habits, setHabits] = useState([{ name: "Drink water", completed: true }]);`
+   - Add `const { habits, setHabits } = useAppContext();` at the top of the component body (after existing imports and before `newHabit` state)
+   - Keep `import { useState } from "react"` — it is still needed for `newHabit` local state
+   - No other changes to `HabitsPage.jsx`
 
 ## Code Shape
 
-```js
-const flashcards = [
-  {
-    id: 'react-001',
-    question: 'What is the purpose of the useState hook?',
-    answer: 'useState lets a function component hold local state. It returns [currentValue, setter]. React schedules a re-render whenever the setter is called with a value that differs from the current one.',
-    topic: 'React & JS deck',
-  },
-  {
-    id: 'react-002',
-    question: 'Why pass a function to useState instead of a value — e.g. useState(() => compute()) instead of useState(compute())?',
-    answer: 'The function form is a lazy initialiser: React calls it only on the first render. The value form evaluates on every render, which wastes work if the initialisation is expensive (e.g. reading localStorage).',
-    topic: 'React & JS deck',
-  },
-  // ... 18+ more cards following the same shape
-];
+```jsx
+// src/context/AppContext.jsx
+import { createContext, useContext, useState } from 'react';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
-export default flashcards;
+const AppContext = createContext(null);
+
+export function AppProvider({ children }) {
+  const [habits, setHabits] = useLocalStorage('habits', []);
+  const [flashcardProgress, setFlashcardProgress] = useState({ completed: 0, total: 0 });
+
+  return (
+    <AppContext.Provider value={{ habits, setHabits, flashcardProgress, setFlashcardProgress }}>
+      {children}
+    </AppContext.Provider>
+  );
+}
+
+export function useAppContext() {
+  const context = useContext(AppContext);
+  if (context === null) {
+    throw new Error('useAppContext must be used within an AppProvider');
+  }
+  return context;
+}
+```
+
+```jsx
+// src/App.jsx — relevant change only
+import { AppProvider } from './context/AppContext'
+// ...
+<ThemeProvider theme={theme}>
+  <GlobalStyles/>
+  <AppProvider>
+    <BrowserRouter>
+      {/* routes and NavBar unchanged */}
+    </BrowserRouter>
+  </AppProvider>
+</ThemeProvider>
+```
+
+```jsx
+// src/pages/HabitsPage/HabitsPage.jsx — relevant change only
+import { useAppContext } from '../../context/AppContext';
+// ...
+const HabitsPage = () => {
+  const { habits, setHabits } = useAppContext();   // replaces local useState
+  const [newHabit, setNewHabit] = useState('');    // local UI state — unchanged
+  // rest of component body unchanged
 ```
 
 ## Patterns to Follow
-- **Pure data file** — no imports, no hooks, no JSX; this is a plain JS module with a single `const` and a default export
-- **JavaScript only** — no TypeScript per CLAUDE.md constraints
-- **No styled components** — data only, no UI surface
-- **Topic strings must exactly match** the hardcoded strings in `FlashcardsPage.jsx` (`"React & JS deck"` etc.) to enable filtering in BOT-005
+- **Cross-page state in context** — habits and flashcardProgress are shared across pages; CLAUDE.md explicitly requires this pattern
+- **Local UI state stays local** — `newHabit` in HabitsPage is input-only UI state; it stays in local `useState`, not context
+- **useLocalStorage for persistence** — habits are stored via the `useLocalStorage` hook (BOT-001), never via direct localStorage calls
+- **No styled components in context file** — AppContext.jsx is pure logic; no JSX styling
+- **Named exports** — both `AppProvider` and `useAppContext` are named exports, not default
 
 ## Out of Scope
-- Java 21, Data Structures, or Kubernetes decks — only "React & JS deck" is required by this ticket
-- Any changes to `FlashcardsPage.jsx` (BOT-005)
-- Wiring the data to any component (BOT-005)
-- AppContext or useLocalStorage (BOT-001 / BOT-003)
-- Pagination or difficulty levels
-
----
-## Review
-
-**Reviewer:** Claude Code Reviewer Agent
-**Date:** 2026-07-05
-**Ticket:** BOT-002
-
-### Guardrail Results
-
-| ID | Category | Check | Result | Notes |
-|---|---|---|---|---|
-| SEC-1 | Security | No dangerouslySetInnerHTML | PASS | Pure data file, no JSX or rendering |
-| SEC-2 | Security | No eval() | PASS | Static array literal, nothing evaluated |
-| SEC-3 | Security | No sensitive data in localStorage | PASS | No localStorage usage at all |
-| SEC-4 | Security | No network requests | PASS | Static data only |
-| COR-1 | Correctness | All acceptance criteria addressed | PASS | All five criteria covered: file/export in Steps 1&4, four-field shape in Step 2, ≥20 cards with distribution in Step 3, "React & JS deck" topic enforced, no imports in Step 4 |
-| COR-2 | Correctness | No scope creep | PASS | One data file only; no FlashcardsPage changes |
-| COR-3 | Correctness | File paths valid | PASS | src/data/flashcards.js matches CLAUDE.md planned structure (src/data/ listed as PLANNED) |
-| PAT-1 | Patterns | Styled components in barrel | PASS | No styled components — pure data file |
-| PAT-2 | Patterns | No hardcoded colors | PASS | No colors or UI |
-| PAT-3 | Patterns | No TypeScript | PASS | Code Shape is plain JavaScript with no type annotations |
-| PAT-4 | Patterns | No external state libs | PASS | No React hooks, no state management |
-| PAT-5 | Patterns | localStorage via hook only | PASS | No localStorage access in a data file |
-| PAT-6 | Patterns | No misused useEffect | PASS | No React hooks at all |
-| SCO-1 | Scope | No extra features | PASS | Single file, topic-scoped to "React & JS deck" |
-| SCO-2 | Scope | All files listed | PASS | src/data/flashcards.js in Files to Create; no other files touched |
-| SCO-3 | Scope | No undisclosed packages | PASS | No imports, no packages |
-
-### Verdict: APPROVED
-
-All guardrails passed. Handing off to Developer for Phase 2 implementation.
+- Streak tracking or `streak` field on habits (BOT-004)
+- Progress bar on HabitsPage (BOT-004)
+- Flashcard progress being set from anywhere — `setFlashcardProgress` is wired up but callers come in BOT-005
+- Home Dashboard stats panel (BOT-006)
+- Mood check-in (BOT-007)
+- Any styled components or UI changes
