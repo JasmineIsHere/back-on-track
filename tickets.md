@@ -89,7 +89,7 @@ The Home Dashboard needs to read habit completion percentage and flashcard progr
 
 ## [BOT-004] Habit Streak Tracking and Daily Progress Bar
 
-**Status:** [x] In Progress
+**Status:** [x] Done
 **Priority:** High
 **Feature Area:** Habit Tracker
 
