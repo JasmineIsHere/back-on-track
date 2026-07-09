@@ -1,142 +1,148 @@
-# Implementation Plan: [BOT-003] Create AppContext for Cross-Page Shared State
+# Implementation Plan: [BOT-004] Habit Streak Tracking and Daily Progress Bar
 
-**Ticket:** BOT-003
-**Status:** Approved
+**Ticket:** BOT-004
+**Status:** Awaiting Review
 **Date:** 2026-07-08
 
 ## Summary
-Create `src/context/AppContext.jsx` exporting `AppProvider` and `useAppContext`, lift `habits` (persisted via `useLocalStorage`) and `flashcardProgress` into shared context, wrap the app in `App.jsx`, and switch `HabitsPage` from local `useState` to `useAppContext` for habits.
+Add streak tracking to each habit (increments on toggle-to-complete, decrements on toggle-to-incomplete) and a progress bar to HabitsPage showing today's completion percentage — both using theme tokens and a `useMemo`-derived percentage. New styled components (`ProgressTrack`, `ProgressFill`, `StreakBadge`) go in the barrel file.
 
 ## Files to Create
-- `src/context/AppContext.jsx` — AppProvider component and useAppContext hook; also implicitly creates the `src/context/` directory
+- None
 
 ## Files to Modify
-- `src/App.jsx` — import `AppProvider` and wrap `BrowserRouter` with it (inside `ThemeProvider`, outside `BrowserRouter`)
-- `src/pages/HabitsPage/HabitsPage.jsx` — replace local `useState` for `habits`/`setHabits` with `useAppContext()`
+- `src/pages/HabitsPage/index.js` — add `ProgressTrack`, `ProgressFill`, `StreakBadge` styled components
+- `src/pages/HabitsPage/HabitsPage.jsx` — add `useMemo` for progress, update `handleAddHabit` to initialise `streak: 0`, update `toggleHabitCompletion` to adjust streak, import and render new styled components
 
 ## Implementation Steps
 
-1. **Create `src/context/AppContext.jsx`**:
-   - Import `createContext`, `useContext`, `useState` from `'react'`
-   - Import `useLocalStorage` from `'../hooks/useLocalStorage'`
-   - Create `const AppContext = createContext(null)` (not exported — internal only)
-   - Define and export `AppProvider({ children })`:
-     - Call `useLocalStorage('habits', [])` to get `[habits, setHabits]` — this persists the habits array across page refreshes with an empty-array default
-     - Call `useState({ completed: 0, total: 0 })` to get `[flashcardProgress, setFlashcardProgress]` — flashcard progress is session-only (not persisted), default to zero counts
-     - Return `<AppContext.Provider value={{ habits, setHabits, flashcardProgress, setFlashcardProgress }}>{children}</AppContext.Provider>`
-   - Define and export `useAppContext()`:
-     - Call `useContext(AppContext)` and store the result
-     - If the result is `null`, throw `new Error('useAppContext must be used within an AppProvider')`
-     - Otherwise return the context value
+1. **Add styled components to `src/pages/HabitsPage/index.js`**:
+   - Add `ProgressTrack`: a `div` with `width: 100%`, `height: 8px`, `background-color: ${({ theme }) => theme.bgSecondary}`, `border-radius: 4px`, `overflow: hidden`, and `margin-bottom: 1rem`
+   - Add `ProgressFill`: a `div` inside the track; sets `height: 100%`, `width: ${({ $percent }) => $percent}%` (transient prop so it does not reach the DOM), `background-color: ${({ theme }) => theme.greenStrong}`, `border-radius: 4px`, `transition: width 0.3s ease`
+   - Add `StreakBadge`: a `span` with `font-size: 0.875rem`, `color: ${({ theme }) => theme.textSecondary}`, `margin-left: auto` (pushes it to the right edge of the flex row)
 
-2. **Modify `src/App.jsx`**:
-   - Add `import { AppProvider } from './context/AppContext'`
-   - Wrap the `<BrowserRouter>…</BrowserRouter>` block with `<AppProvider>…</AppProvider>`, keeping it inside `<ThemeProvider>` and outside `<BrowserRouter>`
-   - No other changes to `App.jsx`
+2. **Update imports in `src/pages/HabitsPage/HabitsPage.jsx`**:
+   - Change `import { useState } from "react"` to `import { useState, useMemo } from "react"`
+   - Add `ProgressTrack`, `ProgressFill`, `StreakBadge` to the named imports from `"."`
 
-3. **Modify `src/pages/HabitsPage/HabitsPage.jsx`**:
-   - Add `import { useAppContext } from '../../context/AppContext'`
-   - Remove the line `const [habits, setHabits] = useState([{ name: "Drink water", completed: true }]);`
-   - Add `const { habits, setHabits } = useAppContext();` at the top of the component body (after existing imports and before `newHabit` state)
-   - Keep `import { useState } from "react"` — it is still needed for `newHabit` local state
-   - No other changes to `HabitsPage.jsx`
+3. **Compute progress with `useMemo` in `HabitsPage`**:
+   - Inside the component body, after the context and state declarations, add:
+     ```js
+     const { completedCount, percent } = useMemo(() => {
+       const completed = habits.filter((h) => h.completed).length;
+       return {
+         completedCount: completed,
+         percent: habits.length ? Math.round((completed / habits.length) * 100) : 0,
+       };
+     }, [habits]);
+     ```
+
+4. **Update `handleAddHabit` to initialise `streak: 0`**:
+   - Change the new habit object from `{ name: newHabit, completed: false }` to `{ name: newHabit, completed: false, streak: 0 }`
+
+5. **Update `toggleHabitCompletion` to adjust streak**:
+   - Replace the current implementation with one that also updates `streak`:
+     ```js
+     const toggleHabitCompletion = (index) => {
+       const updatedHabits = habits.map((habit, i) => {
+         if (i !== index) return habit;
+         const nowCompleted = !habit.completed;
+         const streak = nowCompleted
+           ? (habit.streak ?? 0) + 1
+           : Math.max(0, (habit.streak ?? 0) - 1);
+         return { ...habit, completed: nowCompleted, streak };
+       });
+       setHabits(updatedHabits);
+     };
+     ```
+   - The `?? 0` guard handles existing habits in localStorage that pre-date the `streak` field
+
+6. **Render the progress bar in `HabitsPage` JSX**:
+   - Inside the `habits.length > 0` block, before the `habits.map(...)` list, add:
+     ```jsx
+     <ProgressTrack>
+       <ProgressFill $percent={percent} />
+     </ProgressTrack>
+     ```
+
+7. **Render the streak badge in each `HabitContainer`**:
+   - After `<HabitText>`, add:
+     ```jsx
+     <StreakBadge>🔥 {habit.streak ?? 0}</StreakBadge>
+     ```
 
 ## Code Shape
 
-```jsx
-// src/context/AppContext.jsx
-import { createContext, useContext, useState } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+```js
+// src/pages/HabitsPage/index.js — new exports appended
+export const ProgressTrack = styled.div`
+  width: 100%;
+  height: 8px;
+  background-color: ${({ theme }) => theme.bgSecondary};
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+`;
 
-const AppContext = createContext(null);
+export const ProgressFill = styled.div`
+  height: 100%;
+  width: ${({ $percent }) => $percent}%;
+  background-color: ${({ theme }) => theme.greenStrong};
+  border-radius: 4px;
+  transition: width 0.3s ease;
+`;
 
-export function AppProvider({ children }) {
-  const [habits, setHabits] = useLocalStorage('habits', []);
-  const [flashcardProgress, setFlashcardProgress] = useState({ completed: 0, total: 0 });
-
-  return (
-    <AppContext.Provider value={{ habits, setHabits, flashcardProgress, setFlashcardProgress }}>
-      {children}
-    </AppContext.Provider>
-  );
-}
-
-export function useAppContext() {
-  const context = useContext(AppContext);
-  if (context === null) {
-    throw new Error('useAppContext must be used within an AppProvider');
-  }
-  return context;
-}
+export const StreakBadge = styled.span`
+  font-size: 0.875rem;
+  color: ${({ theme }) => theme.textSecondary};
+  margin-left: auto;
+`;
 ```
 
 ```jsx
-// src/App.jsx — relevant change only
-import { AppProvider } from './context/AppContext'
-// ...
-<ThemeProvider theme={theme}>
-  <GlobalStyles/>
-  <AppProvider>
-    <BrowserRouter>
-      {/* routes and NavBar unchanged */}
-    </BrowserRouter>
-  </AppProvider>
-</ThemeProvider>
-```
+// src/pages/HabitsPage/HabitsPage.jsx — relevant additions
+import { useState, useMemo } from "react";
+import { ..., ProgressTrack, ProgressFill, StreakBadge } from ".";
 
-```jsx
-// src/pages/HabitsPage/HabitsPage.jsx — relevant change only
-import { useAppContext } from '../../context/AppContext';
-// ...
-const HabitsPage = () => {
-  const { habits, setHabits } = useAppContext();   // replaces local useState
-  const [newHabit, setNewHabit] = useState('');    // local UI state — unchanged
-  // rest of component body unchanged
+// Derived value — useMemo, not useEffect
+const { completedCount, percent } = useMemo(() => {
+  const completed = habits.filter((h) => h.completed).length;
+  return {
+    completedCount: completed,
+    percent: habits.length ? Math.round((completed / habits.length) * 100) : 0,
+  };
+}, [habits]);
+
+// handleAddHabit — streak: 0 on creation
+setHabits([...habits, { name: newHabit, completed: false, streak: 0 }]);
+
+// toggleHabitCompletion — adjusts streak
+const nowCompleted = !habit.completed;
+const streak = nowCompleted
+  ? (habit.streak ?? 0) + 1
+  : Math.max(0, (habit.streak ?? 0) - 1);
+return { ...habit, completed: nowCompleted, streak };
+
+// JSX — progress bar above list
+<ProgressTrack>
+  <ProgressFill $percent={percent} />
+</ProgressTrack>
+
+// JSX — streak badge in each row
+<StreakBadge>🔥 {habit.streak ?? 0}</StreakBadge>
 ```
 
 ## Patterns to Follow
-- **Cross-page state in context** — habits and flashcardProgress are shared across pages; CLAUDE.md explicitly requires this pattern
-- **Local UI state stays local** — `newHabit` in HabitsPage is input-only UI state; it stays in local `useState`, not context
-- **useLocalStorage for persistence** — habits are stored via the `useLocalStorage` hook (BOT-001), never via direct localStorage calls
-- **No styled components in context file** — AppContext.jsx is pure logic; no JSX styling
-- **Named exports** — both `AppProvider` and `useAppContext` are named exports, not default
+- **Styled components in barrel** — `ProgressTrack`, `ProgressFill`, `StreakBadge` go in `index.js`, not in `HabitsPage.jsx`
+- **Theme tokens only** — `theme.bgSecondary` for track, `theme.greenStrong` for fill, `theme.textSecondary` for badge; no hardcoded hex
+- **`useMemo` for derived values** — `completedCount` and `percent` are derived from `habits`; never `useEffect`
+- **Transient prop `$percent`** — styled-components v6 transient prop syntax to prevent `percent` from being forwarded to the DOM element
+- **`?? 0` guard** — safely handles existing habits in localStorage without a `streak` field (added by BOT-003)
+- **Cross-page state via AppContext** — `habits`/`setHabits` come from `useAppContext()` (already in place from BOT-003); streak values persist automatically because they're part of the habits objects in localStorage
 
 ## Out of Scope
-- Streak tracking or `streak` field on habits (BOT-004)
-- Progress bar on HabitsPage (BOT-004)
-- Flashcard progress being set from anywhere — `setFlashcardProgress` is wired up but callers come in BOT-005
+- Daily reset of streaks (no midnight cron logic)
+- Streak history or charts
 - Home Dashboard stats panel (BOT-006)
+- Any flashcard work (BOT-005)
 - Mood check-in (BOT-007)
-- Any styled components or UI changes
-
----
-## Review
-
-**Reviewer:** Claude Code Reviewer Agent
-**Date:** 2026-07-08
-**Ticket:** BOT-003
-
-### Guardrail Results
-
-| ID | Category | Check | Result | Notes |
-|---|---|---|---|---|
-| SEC-1 | Security | No dangerouslySetInnerHTML | PASS | AppContext.Provider wrapper only; no innerHTML |
-| SEC-2 | Security | No eval() | PASS | No dynamic code execution |
-| SEC-3 | Security | No sensitive data in localStorage | PASS | Only habits array (name + completed boolean) stored; no PII |
-| SEC-4 | Security | No network requests | PASS | Pure React context; no fetch/XHR |
-| COR-1 | Correctness | All acceptance criteria addressed | PASS | All 6 criteria met: file/exports (Step 1), AppProvider placement (Step 2 + Code Shape), full context value shape (Step 1), useLocalStorage for habits (Step 1), HabitsPage migration (Step 3), descriptive throw in useAppContext (Step 1) |
-| COR-2 | Correctness | No scope creep | PASS | Streak, progress bar, BOT-005/006/007 features all explicitly excluded in Out of Scope |
-| COR-3 | Correctness | File paths valid | PASS | src/context/ matches CLAUDE.md planned directory; App.jsx and HabitsPage.jsx both exist |
-| PAT-1 | Patterns | Styled components in barrel | PASS | No styled components introduced; AppContext.jsx is pure logic |
-| PAT-2 | Patterns | No hardcoded colors | PASS | No color values anywhere in the plan |
-| PAT-3 | Patterns | No TypeScript | PASS | All code shapes are plain JSX/JS; no type annotations |
-| PAT-4 | Patterns | No external state libs | PASS | createContext, useContext, useState from React only |
-| PAT-5 | Patterns | localStorage via hook only | PASS | useLocalStorage hook used; no direct getItem/setItem calls |
-| PAT-6 | Patterns | No misused useEffect | PASS | No useEffect anywhere in the plan |
-| SCO-1 | Scope | No extra features | PASS | Three files only; exactly the context file plus two wiring changes |
-| SCO-2 | Scope | All files listed | PASS | AppContext.jsx in Files to Create; App.jsx and HabitsPage.jsx in Files to Modify |
-| SCO-3 | Scope | No undisclosed packages | PASS | React built-ins and project's own useLocalStorage hook only |
-
-### Verdict: APPROVED
-
-All guardrails passed. Handing off to Developer for Phase 2 implementation.
