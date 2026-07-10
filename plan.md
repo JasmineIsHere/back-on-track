@@ -1,180 +1,165 @@
-# Implementation Plan: [BOT-004] Habit Streak Tracking and Daily Progress Bar
+# Implementation Plan: [BOT-005] Flashcard Flip-Card Interface, Self-Rating, and Queue
 
-**Ticket:** BOT-004
-**Status:** Approved
+**Ticket:** BOT-005
+**Status:** Awaiting Review
 **Date:** 2026-07-08
 
 ## Summary
-Add streak tracking to each habit (increments on toggle-to-complete, decrements on toggle-to-incomplete) and a progress bar to HabitsPage showing today's completion percentage — both using theme tokens and a `useMemo`-derived percentage. New styled components (`ProgressTrack`, `ProgressFill`, `StreakBadge`) go in the barrel file.
+Replace the FlashcardsPage stub with a full flip-card study experience: a `useReducer`-driven queue that lets users flip cards, rate them ("Got it" / "Review again"), and tracks cleared count in a progress bar and in AppContext. All styled components go in a new barrel file.
 
 ## Files to Create
-- None
+- `src/pages/FlashcardsPage/index.js` — barrel file with all styled components for the flashcard UI
 
 ## Files to Modify
-- `src/pages/HabitsPage/index.js` — add `ProgressTrack`, `ProgressFill`, `StreakBadge` styled components
-- `src/pages/HabitsPage/HabitsPage.jsx` — add `useMemo` for progress, update `handleAddHabit` to initialise `streak: 0`, update `toggleHabitCompletion` to adjust streak, import and render new styled components
+- `src/pages/FlashcardsPage/FlashcardsPage.jsx` — full rewrite of the stub; adds `useReducer`, loads cards from `src/data/flashcards.js`, renders flip card, rating buttons, progress bar, and completion screen
 
 ## Implementation Steps
 
-1. **Add styled components to `src/pages/HabitsPage/index.js`**:
-   - Add `ProgressTrack`: a `div` with `width: 100%`, `height: 8px`, `background-color: ${({ theme }) => theme.bgSecondary}`, `border-radius: 4px`, `overflow: hidden`, and `margin-bottom: 1rem`
-   - Add `ProgressFill`: a `div` inside the track; sets `height: 100%`, `width: ${({ $percent }) => $percent}%` (transient prop so it does not reach the DOM), `background-color: ${({ theme }) => theme.greenStrong}`, `border-radius: 4px`, `transition: width 0.3s ease`
-   - Add `StreakBadge`: a `span` with `font-size: 0.875rem`, `color: ${({ theme }) => theme.textSecondary}`, `margin-left: auto` (pushes it to the right edge of the flex row)
+1. **Create `src/pages/FlashcardsPage/index.js`** with the following named exports (all using `styled-components`; no hardcoded colors):
 
-2. **Update imports in `src/pages/HabitsPage/HabitsPage.jsx`**:
-   - Change `import { useState } from "react"` to `import { useState, useMemo } from "react"`
-   - Add `ProgressTrack`, `ProgressFill`, `StreakBadge` to the named imports from `"."`
+   - `CardScene` — `styled.div`: `perspective: 1000px; width: 100%; cursor: pointer; margin: 1rem 0;`
+   - `CardInner` — `styled.div`: `position: relative; min-height: 220px; transform-style: preserve-3d; transition: transform 0.5s ease; transform: ${({ $flipped }) => $flipped ? 'rotateY(180deg)' : 'rotateY(0deg)'};`
+   - Internal (non-exported) `CardFace` base: `position: absolute; top: 0; left: 0; right: 0; bottom: 0; min-height: 220px; border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; backface-visibility: hidden; background-color: ${({ theme }) => theme.bgSecondary}; border: 1px solid ${({ theme }) => theme.border};`
+   - `CardFront` — `styled(CardFace)`: no additional styles (shows by default)
+   - `CardBack` — `styled(CardFace)`: `transform: rotateY(180deg);` (pre-rotated so it shows when CardInner flips)
+   - `CardText` — `styled.p`: `font-size: 1.1rem; color: ${({ theme }) => theme.textPrimary}; line-height: 1.6;`
+   - `FlipHint` — `styled.span`: `font-size: 0.75rem; color: ${({ theme }) => theme.textTertiary}; margin-top: 1rem;`
+   - `RatingRow` — `styled.div`: `display: flex; gap: 1rem; margin-top: 1rem;`
+   - `GotItButton` — `styled.button`: `flex: 1; padding: 0.75rem; border-radius: 8px; font-size: 1rem; cursor: pointer; background-color: ${({ theme }) => theme.greenBg}; color: ${({ theme }) => theme.greenText}; border: 1px solid ${({ theme }) => theme.greenText};`
+   - `ReviewAgainButton` — `styled.button`: same shape as `GotItButton` but `background-color: ${({ theme }) => theme.amberBg}; color: ${({ theme }) => theme.amberText}; border: 1px solid ${({ theme }) => theme.amberText};`
+   - `ProgressTrack` — `styled.div`: `width: 100%; height: 8px; background-color: ${({ theme }) => theme.bgSecondary}; border-radius: 4px; overflow: hidden; margin-bottom: 0.5rem;`
+   - `ProgressFill` — `styled.div`: `height: 100%; width: ${({ $percent }) => $percent}%; background-color: ${({ theme }) => theme.greenStrong}; border-radius: 4px; transition: width 0.3s ease;`
+   - `ProgressLabel` — `styled.p`: `font-size: 0.875rem; color: ${({ theme }) => theme.textSecondary}; margin-bottom: 1rem;`
+   - `CompletionBox` — `styled.div`: `text-align: center; padding: 2rem; background-color: ${({ theme }) => theme.greenBg}; border-radius: 12px; color: ${({ theme }) => theme.greenText};`
+   - `ResetButton` — `styled.button`: `margin-top: 1rem; padding: 0.75rem 1.5rem; background-color: ${({ theme }) => theme.bgSecondary}; color: ${({ theme }) => theme.textPrimary}; border: 1px solid ${({ theme }) => theme.border}; border-radius: 8px; font-size: 1rem; cursor: pointer;`
 
-3. **Compute progress with `useMemo` in `HabitsPage`**:
-   - Inside the component body, after the context and state declarations, add:
-     ```js
-     const { completedCount, percent } = useMemo(() => {
-       const completed = habits.filter((h) => h.completed).length;
-       return {
-         completedCount: completed,
-         percent: habits.length ? Math.round((completed / habits.length) * 100) : 0,
-       };
-     }, [habits]);
-     ```
+2. **Rewrite `src/pages/FlashcardsPage/FlashcardsPage.jsx`**:
 
-4. **Update `handleAddHabit` to initialise `streak: 0`**:
-   - Change the new habit object from `{ name: newHabit, completed: false }` to `{ name: newHabit, completed: false, streak: 0 }`
+   a. **Imports**: `useReducer`, `useState` from `'react'`; `HeaderBar`; `Container` from `'../../components/Container'`; `useAppContext` from `'../../context/AppContext'`; default `flashcards` from `'../../data/flashcards'`; all named exports from `'.'`.
 
-5. **Update `toggleHabitCompletion` to adjust streak**:
-   - Replace the current implementation with one that also updates `streak`:
-     ```js
-     const toggleHabitCompletion = (index) => {
-       const updatedHabits = habits.map((habit, i) => {
-         if (i !== index) return habit;
-         const nowCompleted = !habit.completed;
-         const streak = nowCompleted
-           ? (habit.streak ?? 0) + 1
-           : Math.max(0, (habit.streak ?? 0) - 1);
-         return { ...habit, completed: nowCompleted, streak };
-       });
-       setHabits(updatedHabits);
-     };
-     ```
-   - The `?? 0` guard handles existing habits in localStorage that pre-date the `streak` field
+   b. **Define `TOPICS` constant** at module level (outside the component):
+      ```js
+      const TOPICS = ["React & JS deck", "Java 21 deck", "Data Structures deck", "Kubernetes deck"];
+      ```
 
-6. **Render the progress bar in `HabitsPage` JSX**:
-   - Inside the `habits.length > 0` block, before the `habits.map(...)` list, add:
-     ```jsx
-     <ProgressTrack>
-       <ProgressFill $percent={percent} />
-     </ProgressTrack>
-     ```
+   c. **Define `buildInitialState(cards)` helper** at module level:
+      ```js
+      function buildInitialState(cards) {
+        return { queue: [...cards], cleared: 0, total: cards.length, flipped: false, done: cards.length === 0 };
+      }
+      ```
 
-7. **Render the streak badge in each `HabitContainer`**:
-   - After `<HabitText>`, add:
-     ```jsx
-     <StreakBadge>🔥 {habit.streak ?? 0}</StreakBadge>
-     ```
+   d. **Define `reducer(state, action)` at module level** with four cases:
+      - `FLIP` — returns `{ ...state, flipped: !state.flipped }`
+      - `RATE_GOT_IT` — destructures `[, ...rest]` from `state.queue`, returns `{ ...state, queue: rest, cleared: state.cleared + 1, flipped: false, done: rest.length === 0 }`
+      - `RATE_REVIEW_AGAIN` — destructures `[current, ...rest]` from `state.queue`, returns `{ ...state, queue: [...rest, current], flipped: false }`
+      - `RESET` — returns `buildInitialState(action.cards)`
+      - `default` — returns `state`
+
+   e. **Inside `FlashcardsPage` component**:
+      - `const { setFlashcardProgress } = useAppContext()`
+      - `const [selectedTopic] = useState(() => TOPICS[Math.floor(Math.random() * TOPICS.length)])` — keeps random topic from initial render, consistent with existing behaviour
+      - `const [state, dispatch] = useReducer(reducer, selectedTopic, (topic) => buildInitialState(flashcards.filter(c => c.topic === topic)))` — lazy initialiser filters cards once at mount
+      - `const percent = state.total ? Math.round((state.cleared / state.total) * 100) : 0`
+      - `const currentCard = state.queue[0]`
+
+   f. **Event handlers inside the component**:
+      ```js
+      const handleFlip = () => dispatch({ type: 'FLIP' });
+
+      const handleGotIt = () => {
+        const newCleared = state.cleared + 1;
+        dispatch({ type: 'RATE_GOT_IT' });
+        setFlashcardProgress({ completed: newCleared, total: state.total });
+      };
+
+      const handleReviewAgain = () => dispatch({ type: 'RATE_REVIEW_AGAIN' });
+
+      const handleReset = () => {
+        const cards = flashcards.filter(c => c.topic === selectedTopic);
+        dispatch({ type: 'RESET', cards });
+        setFlashcardProgress({ completed: 0, total: cards.length });
+      };
+      ```
+
+   g. **JSX return**:
+      ```jsx
+      <>
+        <HeaderBar title="Flashcards" subtitle={selectedTopic} />
+        <Container>
+          <ProgressTrack><ProgressFill $percent={percent} /></ProgressTrack>
+          <ProgressLabel>{state.cleared} / {state.total} cards cleared</ProgressLabel>
+
+          {state.done ? (
+            <CompletionBox>
+              <p>All cards cleared! 🎉</p>
+              <ResetButton onClick={handleReset}>Restart deck</ResetButton>
+            </CompletionBox>
+          ) : (
+            <>
+              <CardScene onClick={handleFlip}>
+                <CardInner $flipped={state.flipped}>
+                  <CardFront>
+                    <CardText>{currentCard.question}</CardText>
+                    <FlipHint>Tap to reveal answer</FlipHint>
+                  </CardFront>
+                  <CardBack>
+                    <CardText>{currentCard.answer}</CardText>
+                  </CardBack>
+                </CardInner>
+              </CardScene>
+              {state.flipped && (
+                <RatingRow>
+                  <GotItButton onClick={handleGotIt}>Got it ✓</GotItButton>
+                  <ReviewAgainButton onClick={handleReviewAgain}>Review again</ReviewAgainButton>
+                </RatingRow>
+              )}
+            </>
+          )}
+        </Container>
+      </>
+      ```
 
 ## Code Shape
 
 ```js
-// src/pages/HabitsPage/index.js — new exports appended
-export const ProgressTrack = styled.div`
-  width: 100%;
-  height: 8px;
-  background-color: ${({ theme }) => theme.bgSecondary};
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 1rem;
+// src/pages/FlashcardsPage/index.js — key exports
+export const CardScene = styled.div`...cursor: pointer; perspective: 1000px;`;
+export const CardInner = styled.div`
+  transform-style: preserve-3d;
+  transition: transform 0.5s ease;
+  transform: ${({ $flipped }) => $flipped ? 'rotateY(180deg)' : 'rotateY(0deg)'};
 `;
-
-export const ProgressFill = styled.div`
-  height: 100%;
-  width: ${({ $percent }) => $percent}%;
-  background-color: ${({ theme }) => theme.greenStrong};
-  border-radius: 4px;
-  transition: width 0.3s ease;
-`;
-
-export const StreakBadge = styled.span`
-  font-size: 0.875rem;
-  color: ${({ theme }) => theme.textSecondary};
-  margin-left: auto;
-`;
+// Internal base (not exported)
+const CardFace = styled.div`...backface-visibility: hidden;`;
+export const CardFront = styled(CardFace)``;
+export const CardBack = styled(CardFace)`transform: rotateY(180deg);`;
+export const GotItButton = styled.button`...theme.greenBg / theme.greenText`;
+export const ReviewAgainButton = styled.button`...theme.amberBg / theme.amberText`;
+export const ProgressFill = styled.div`width: ${({ $percent }) => $percent}%;`;
+export const CompletionBox = styled.div`...theme.greenBg / theme.greenText`;
 ```
 
-```jsx
-// src/pages/HabitsPage/HabitsPage.jsx — relevant additions
-import { useState, useMemo } from "react";
-import { ..., ProgressTrack, ProgressFill, StreakBadge } from ".";
-
-// Derived value — useMemo, not useEffect
-const { completedCount, percent } = useMemo(() => {
-  const completed = habits.filter((h) => h.completed).length;
-  return {
-    completedCount: completed,
-    percent: habits.length ? Math.round((completed / habits.length) * 100) : 0,
-  };
-}, [habits]);
-
-// handleAddHabit — streak: 0 on creation
-setHabits([...habits, { name: newHabit, completed: false, streak: 0 }]);
-
-// toggleHabitCompletion — adjusts streak
-const nowCompleted = !habit.completed;
-const streak = nowCompleted
-  ? (habit.streak ?? 0) + 1
-  : Math.max(0, (habit.streak ?? 0) - 1);
-return { ...habit, completed: nowCompleted, streak };
-
-// JSX — progress bar above list
-<ProgressTrack>
-  <ProgressFill $percent={percent} />
-</ProgressTrack>
-
-// JSX — streak badge in each row
-<StreakBadge>🔥 {habit.streak ?? 0}</StreakBadge>
+```js
+// src/pages/FlashcardsPage/FlashcardsPage.jsx — reducer shape
+// State: { queue: Card[], cleared: number, total: number, flipped: boolean, done: boolean }
+// Actions: FLIP | RATE_GOT_IT | RATE_REVIEW_AGAIN | RESET(cards)
+useReducer(reducer, selectedTopic, (topic) => buildInitialState(flashcards.filter(...)))
 ```
 
 ## Patterns to Follow
-- **Styled components in barrel** — `ProgressTrack`, `ProgressFill`, `StreakBadge` go in `index.js`, not in `HabitsPage.jsx`
-- **Theme tokens only** — `theme.bgSecondary` for track, `theme.greenStrong` for fill, `theme.textSecondary` for badge; no hardcoded hex
-- **`useMemo` for derived values** — `completedCount` and `percent` are derived from `habits`; never `useEffect`
-- **Transient prop `$percent`** — styled-components v6 transient prop syntax to prevent `percent` from being forwarded to the DOM element
-- **`?? 0` guard** — safely handles existing habits in localStorage without a `streak` field (added by BOT-003)
-- **Cross-page state via AppContext** — `habits`/`setHabits` come from `useAppContext()` (already in place from BOT-003); streak values persist automatically because they're part of the habits objects in localStorage
+- **Styled components in barrel** — all components in `index.js`; none declared inline in `FlashcardsPage.jsx`
+- **Theme tokens only** — `greenBg/greenText/greenStrong`, `amberBg/amberText`, `bgSecondary`, `border`, `textPrimary/Secondary/Tertiary`; no hardcoded hex
+- **`$flipped` transient prop** — prevents the boolean from reaching the DOM element
+- **`$percent` transient prop** — same pattern as HabitsPage ProgressFill
+- **`useReducer` for queue logic** — per ticket's explicit technical note; all state transitions are pure functions in `reducer`
+- **Cross-page state update** — `setFlashcardProgress` from `useAppContext()` is called in `handleGotIt` and `handleReset`, never via direct localStorage; AppContext owns the data
+- **Lazy initialiser on `useReducer`** — `(topic) => buildInitialState(...)` form avoids recomputing on every render
 
 ## Out of Scope
-- Daily reset of streaks (no midnight cron logic)
-- Streak history or charts
+- Persisting flashcard progress in localStorage (AppContext holds it in session state — BOT-003 defined `flashcardProgress` as session-only)
+- Topic switcher UI (no UI to change topic during session in this ticket)
+- Keyboard navigation or accessibility enhancements
+- Shuffle or random ordering of cards
 - Home Dashboard stats panel (BOT-006)
-- Any flashcard work (BOT-005)
 - Mood check-in (BOT-007)
-
----
-## Review
-
-**Reviewer:** Claude Code Reviewer Agent
-**Date:** 2026-07-08
-**Ticket:** BOT-004
-
-### Guardrail Results
-
-| ID | Category | Check | Result | Notes |
-|---|---|---|---|---|
-| SEC-1 | Security | No dangerouslySetInnerHTML | PASS | Styled components only; no innerHTML |
-| SEC-2 | Security | No eval() | PASS | No dynamic code execution |
-| SEC-3 | Security | No sensitive data in localStorage | PASS | Only name, completed boolean, streak integer stored |
-| SEC-4 | Security | No network requests | PASS | Pure React/styled-components |
-| COR-1 | Correctness | All acceptance criteria addressed | PASS | All 6 criteria met: persistence via BOT-003 (with ?? 0 guard), streak field in Steps 4&5, +1/-1 logic with Math.max(0,...) in Step 5, progress bar in Steps 3&6, theme tokens in Step 1, 🔥 badge in Step 7 |
-| COR-2 | Correctness | No scope creep | PASS | Daily reset, streak history, BOT-005/006/007 all explicitly excluded |
-| COR-3 | Correctness | File paths valid | PASS | Both src/pages/HabitsPage/index.js and HabitsPage.jsx exist in the project |
-| PAT-1 | Patterns | Styled components in barrel | PASS | ProgressTrack, ProgressFill, StreakBadge all go in index.js, not inline |
-| PAT-2 | Patterns | No hardcoded colors | PASS | theme.bgSecondary, theme.greenStrong, theme.textSecondary only; no hex values |
-| PAT-3 | Patterns | No TypeScript | PASS | Plain JS/JSX throughout |
-| PAT-4 | Patterns | No external state libs | PASS | Only useState and useMemo from React |
-| PAT-5 | Patterns | localStorage via hook only | PASS | setHabits from useAppContext() wraps useLocalStorage; no direct calls |
-| PAT-6 | Patterns | No misused useEffect | PASS | completedCount and percent derived with useMemo; explicitly noted in Patterns section |
-| SCO-1 | Scope | No extra features | PASS | Two files only; exactly what the ticket specifies |
-| SCO-2 | Scope | All files listed | PASS | Both files listed in Files to Modify; no others touched |
-| SCO-3 | Scope | No undisclosed packages | PASS | React built-ins only |
-
-### Verdict: APPROVED
-
-All guardrails passed. Handing off to Developer for Phase 2 implementation.

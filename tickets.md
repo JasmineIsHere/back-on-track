@@ -119,7 +119,7 @@ The Habit Tracker currently lets users add and toggle habits but has no streak t
 
 ## [BOT-005] Flashcard Flip-Card Interface, Self-Rating, and Queue
 
-**Status:** [ ] Open
+**Status:** [x] In Progress
 **Priority:** High
 **Feature Area:** Flashcard Deck
 
