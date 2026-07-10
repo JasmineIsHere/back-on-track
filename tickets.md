@@ -152,7 +152,7 @@ The FlashcardsPage is currently a stub that only displays a topic in the header.
 
 ## [BOT-006] Home Dashboard Stats Panel
 
-**Status:** [ ] Open
+**Status:** [x] In Progress
 **Priority:** Medium
 **Feature Area:** Home Dashboard
 

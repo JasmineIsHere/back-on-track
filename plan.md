@@ -1,121 +1,81 @@
-# Implementation Plan: [BOT-005] Flashcard Flip-Card Interface, Self-Rating, and Queue
+# Implementation Plan: [BOT-006] Home Dashboard Stats Panel
 
-**Ticket:** BOT-005
-**Status:** Approved
-**Date:** 2026-07-08
+**Ticket:** BOT-006
+**Status:** Awaiting Review
+**Date:** 2026-07-10
 
 ## Summary
-Replace the FlashcardsPage stub with a full flip-card study experience: a `useReducer`-driven queue that lets users flip cards, rate them ("Got it" / "Review again"), and tracks cleared count in a progress bar and in AppContext. All styled components go in a new barrel file.
+Add a stats section to the Home page that reads `habits` and `flashcardProgress` from `useAppContext()` and displays today's habit completion percentage and flashcard deck progress, with contextual empty-state prompts when no data exists yet.
 
 ## Files to Create
-- `src/pages/FlashcardsPage/index.js` — barrel file with all styled components for the flashcard UI
+- `src/pages/HomePage/index.js` — barrel file with all styled components for the stats section (file exists but is empty; will be populated)
 
 ## Files to Modify
-- `src/pages/FlashcardsPage/FlashcardsPage.jsx` — full rewrite of the stub; adds `useReducer`, loads cards from `src/data/flashcards.js`, renders flip card, rating buttons, progress bar, and completion screen
+- `src/pages/HomePage/Home.jsx` — add `useMemo` import, `useAppContext` import, `Container` import, styled component imports from `'.'`, compute derived progress, render stats section below the `HeaderBar`
 
 ## Implementation Steps
 
-1. **Create `src/pages/FlashcardsPage/index.js`** with the following named exports (all using `styled-components`; no hardcoded colors):
+1. **Populate `src/pages/HomePage/index.js`** with the following named exports (all using `styled-components`; no hardcoded colors):
 
-   - `CardScene` — `styled.div`: `perspective: 1000px; width: 100%; cursor: pointer; margin: 1rem 0;`
-   - `CardInner` — `styled.div`: `position: relative; min-height: 220px; transform-style: preserve-3d; transition: transform 0.5s ease; transform: ${({ $flipped }) => $flipped ? 'rotateY(180deg)' : 'rotateY(0deg)'};`
-   - Internal (non-exported) `CardFace` base: `position: absolute; top: 0; left: 0; right: 0; bottom: 0; min-height: 220px; border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; backface-visibility: hidden; background-color: ${({ theme }) => theme.bgSecondary}; border: 1px solid ${({ theme }) => theme.border};`
-   - `CardFront` — `styled(CardFace)`: no additional styles (shows by default)
-   - `CardBack` — `styled(CardFace)`: `transform: rotateY(180deg);` (pre-rotated so it shows when CardInner flips)
-   - `CardText` — `styled.p`: `font-size: 1.1rem; color: ${({ theme }) => theme.textPrimary}; line-height: 1.6;`
-   - `FlipHint` — `styled.span`: `font-size: 0.75rem; color: ${({ theme }) => theme.textTertiary}; margin-top: 1rem;`
-   - `RatingRow` — `styled.div`: `display: flex; gap: 1rem; margin-top: 1rem;`
-   - `GotItButton` — `styled.button`: `flex: 1; padding: 0.75rem; border-radius: 8px; font-size: 1rem; cursor: pointer; background-color: ${({ theme }) => theme.greenBg}; color: ${({ theme }) => theme.greenText}; border: 1px solid ${({ theme }) => theme.greenText};`
-   - `ReviewAgainButton` — `styled.button`: same shape as `GotItButton` but `background-color: ${({ theme }) => theme.amberBg}; color: ${({ theme }) => theme.amberText}; border: 1px solid ${({ theme }) => theme.amberText};`
-   - `ProgressTrack` — `styled.div`: `width: 100%; height: 8px; background-color: ${({ theme }) => theme.bgSecondary}; border-radius: 4px; overflow: hidden; margin-bottom: 0.5rem;`
-   - `ProgressFill` — `styled.div`: `height: 100%; width: ${({ $percent }) => $percent}%; background-color: ${({ theme }) => theme.greenStrong}; border-radius: 4px; transition: width 0.3s ease;`
-   - `ProgressLabel` — `styled.p`: `font-size: 0.875rem; color: ${({ theme }) => theme.textSecondary}; margin-bottom: 1rem;`
-   - `CompletionBox` — `styled.div`: `text-align: center; padding: 2rem; background-color: ${({ theme }) => theme.greenBg}; border-radius: 12px; color: ${({ theme }) => theme.greenText};`
-   - `ResetButton` — `styled.button`: `margin-top: 1rem; padding: 0.75rem 1.5rem; background-color: ${({ theme }) => theme.bgSecondary}; color: ${({ theme }) => theme.textPrimary}; border: 1px solid ${({ theme }) => theme.border}; border-radius: 8px; font-size: 1rem; cursor: pointer;`
+   - `StatsSection` — `styled.div`: `display: flex; flex-direction: column; gap: 1rem;`
+   - `StatCard` — `styled.div`: `background-color: ${({ theme }) => theme.bgSecondary}; border: 1px solid ${({ theme }) => theme.border}; border-radius: 12px; padding: 1.25rem 1.5rem;`
+   - `StatLabel` — `styled.p`: `font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: ${({ theme }) => theme.textTertiary}; margin-bottom: 0.5rem;`
+   - `StatValue` — `styled.p`: `font-size: 1rem; color: ${({ $tone, theme }) => $tone === 'good' ? theme.greenText : $tone === 'partial' ? theme.amberText : theme.textSecondary};`
+   - `EmptyPrompt` — `styled.p`: `font-size: 0.875rem; color: ${({ theme }) => theme.textSecondary};`
 
-2. **Rewrite `src/pages/FlashcardsPage/FlashcardsPage.jsx`**:
+2. **Rewrite `src/pages/HomePage/Home.jsx`**:
 
-   a. **Imports**: `useReducer`, `useState` from `'react'`; `HeaderBar`; `Container` from `'../../components/Container'`; `useAppContext` from `'../../context/AppContext'`; default `flashcards` from `'../../data/flashcards'`; all named exports from `'.'`.
+   a. **Imports**: add `useMemo` from `'react'`; `Container` from `'../../components/Container'`; `useAppContext` from `'../../context/AppContext'`; named exports `StatsSection`, `StatCard`, `StatLabel`, `StatValue`, `EmptyPrompt` from `'.'`
 
-   b. **Define `TOPICS` constant** at module level (outside the component):
+   b. **Inside `HomePage` component**, after the existing date/greeting logic:
       ```js
-      const TOPICS = ["React & JS deck", "Java 21 deck", "Data Structures deck", "Kubernetes deck"];
+      const { habits, flashcardProgress } = useAppContext();
+
+      const habitStats = useMemo(() => {
+        const total = habits.length;
+        const completed = habits.filter((h) => h.completed).length;
+        const percent = total ? Math.round((completed / total) * 100) : 0;
+        return { total, completed, percent };
+      }, [habits]);
+
+      const flashTone = flashcardProgress.total === 0 ? 'none'
+        : flashcardProgress.completed === flashcardProgress.total ? 'good'
+        : flashcardProgress.completed > 0 ? 'partial'
+        : 'none';
+
+      const habitTone = habitStats.total === 0 ? 'none'
+        : habitStats.percent === 100 ? 'good'
+        : habitStats.percent > 0 ? 'partial'
+        : 'none';
       ```
 
-   c. **Define `buildInitialState(cards)` helper** at module level:
-      ```js
-      function buildInitialState(cards) {
-        return { queue: [...cards], cleared: 0, total: cards.length, flipped: false, done: cards.length === 0 };
-      }
-      ```
-
-   d. **Define `reducer(state, action)` at module level** with four cases:
-      - `FLIP` — returns `{ ...state, flipped: !state.flipped }`
-      - `RATE_GOT_IT` — destructures `[, ...rest]` from `state.queue`, returns `{ ...state, queue: rest, cleared: state.cleared + 1, flipped: false, done: rest.length === 0 }`
-      - `RATE_REVIEW_AGAIN` — destructures `[current, ...rest]` from `state.queue`, returns `{ ...state, queue: [...rest, current], flipped: false }`
-      - `RESET` — returns `buildInitialState(action.cards)`
-      - `default` — returns `state`
-
-   e. **Inside `FlashcardsPage` component**:
-      - `const { setFlashcardProgress } = useAppContext()`
-      - `const [selectedTopic] = useState(() => TOPICS[Math.floor(Math.random() * TOPICS.length)])` — keeps random topic from initial render, consistent with existing behaviour
-      - `const [state, dispatch] = useReducer(reducer, selectedTopic, (topic) => buildInitialState(flashcards.filter(c => c.topic === topic)))` — lazy initialiser filters cards once at mount
-      - `const percent = state.total ? Math.round((state.cleared / state.total) * 100) : 0`
-      - `const currentCard = state.queue[0]`
-
-   f. **Event handlers inside the component**:
-      ```js
-      const handleFlip = () => dispatch({ type: 'FLIP' });
-
-      const handleGotIt = () => {
-        const newCleared = state.cleared + 1;
-        dispatch({ type: 'RATE_GOT_IT' });
-        setFlashcardProgress({ completed: newCleared, total: state.total });
-      };
-
-      const handleReviewAgain = () => dispatch({ type: 'RATE_REVIEW_AGAIN' });
-
-      const handleReset = () => {
-        const cards = flashcards.filter(c => c.topic === selectedTopic);
-        dispatch({ type: 'RESET', cards });
-        setFlashcardProgress({ completed: 0, total: cards.length });
-      };
-      ```
-
-   g. **JSX return**:
+   c. **JSX return**: wrap in a fragment, keep `HeaderBar` first, add `Container` with stats below:
       ```jsx
       <>
-        <HeaderBar title="Flashcards" subtitle={selectedTopic} />
+        <HeaderBar title={greeting() + ", " + user + "!"} subtitle={formattedDate} />
         <Container>
-          <ProgressTrack><ProgressFill $percent={percent} /></ProgressTrack>
-          <ProgressLabel>{state.cleared} / {state.total} cards cleared</ProgressLabel>
-
-          {state.done ? (
-            <CompletionBox>
-              <p>All cards cleared! 🎉</p>
-              <ResetButton onClick={handleReset}>Restart deck</ResetButton>
-            </CompletionBox>
-          ) : (
-            <>
-              <CardScene onClick={handleFlip}>
-                <CardInner $flipped={state.flipped}>
-                  <CardFront>
-                    <CardText>{currentCard.question}</CardText>
-                    <FlipHint>Tap to reveal answer</FlipHint>
-                  </CardFront>
-                  <CardBack>
-                    <CardText>{currentCard.answer}</CardText>
-                  </CardBack>
-                </CardInner>
-              </CardScene>
-              {state.flipped && (
-                <RatingRow>
-                  <GotItButton onClick={handleGotIt}>Got it ✓</GotItButton>
-                  <ReviewAgainButton onClick={handleReviewAgain}>Review again</ReviewAgainButton>
-                </RatingRow>
+          <StatsSection>
+            <StatCard>
+              <StatLabel>Today's habits</StatLabel>
+              {habitStats.total === 0 ? (
+                <EmptyPrompt>Add your first habit on the Habits page</EmptyPrompt>
+              ) : (
+                <StatValue $tone={habitTone}>
+                  {habitStats.completed} / {habitStats.total} habits done — {habitStats.percent}%
+                </StatValue>
               )}
-            </>
-          )}
+            </StatCard>
+            <StatCard>
+              <StatLabel>Flashcard session</StatLabel>
+              {flashcardProgress.total === 0 ? (
+                <EmptyPrompt>Start a session on the Flashcards page</EmptyPrompt>
+              ) : (
+                <StatValue $tone={flashTone}>
+                  {flashcardProgress.completed} / {flashcardProgress.total} cards cleared
+                </StatValue>
+              )}
+            </StatCard>
+          </StatsSection>
         </Container>
       </>
       ```
@@ -123,75 +83,32 @@ Replace the FlashcardsPage stub with a full flip-card study experience: a `useRe
 ## Code Shape
 
 ```js
-// src/pages/FlashcardsPage/index.js — key exports
-export const CardScene = styled.div`...cursor: pointer; perspective: 1000px;`;
-export const CardInner = styled.div`
-  transform-style: preserve-3d;
-  transition: transform 0.5s ease;
-  transform: ${({ $flipped }) => $flipped ? 'rotateY(180deg)' : 'rotateY(0deg)'};
-`;
-// Internal base (not exported)
-const CardFace = styled.div`...backface-visibility: hidden;`;
-export const CardFront = styled(CardFace)``;
-export const CardBack = styled(CardFace)`transform: rotateY(180deg);`;
-export const GotItButton = styled.button`...theme.greenBg / theme.greenText`;
-export const ReviewAgainButton = styled.button`...theme.amberBg / theme.amberText`;
-export const ProgressFill = styled.div`width: ${({ $percent }) => $percent}%;`;
-export const CompletionBox = styled.div`...theme.greenBg / theme.greenText`;
+// src/pages/HomePage/index.js — key exports
+export const StatsSection = styled.div`display: flex; flex-direction: column; gap: 1rem;`;
+export const StatCard = styled.div`...theme.bgSecondary / theme.border;`;
+export const StatLabel = styled.p`...text-transform: uppercase; theme.textTertiary;`;
+export const StatValue = styled.p`color: ${({ $tone, theme }) => $tone === 'good' ? theme.greenText : $tone === 'partial' ? theme.amberText : theme.textSecondary};`;
+export const EmptyPrompt = styled.p`...theme.textSecondary;`;
 ```
 
 ```js
-// src/pages/FlashcardsPage/FlashcardsPage.jsx — reducer shape
-// State: { queue: Card[], cleared: number, total: number, flipped: boolean, done: boolean }
-// Actions: FLIP | RATE_GOT_IT | RATE_REVIEW_AGAIN | RESET(cards)
-useReducer(reducer, selectedTopic, (topic) => buildInitialState(flashcards.filter(...)))
+// src/pages/HomePage/Home.jsx — derived state shape
+const { habits, flashcardProgress } = useAppContext();
+const habitStats = useMemo(() => ({ total, completed, percent }), [habits]);
+// $tone prop: 'good' | 'partial' | 'none' — drives StatValue color via theme token
 ```
 
 ## Patterns to Follow
-- **Styled components in barrel** — all components in `index.js`; none declared inline in `FlashcardsPage.jsx`
-- **Theme tokens only** — `greenBg/greenText/greenStrong`, `amberBg/amberText`, `bgSecondary`, `border`, `textPrimary/Secondary/Tertiary`; no hardcoded hex
-- **`$flipped` transient prop** — prevents the boolean from reaching the DOM element
-- **`$percent` transient prop** — same pattern as HabitsPage ProgressFill
-- **`useReducer` for queue logic** — per ticket's explicit technical note; all state transitions are pure functions in `reducer`
-- **Cross-page state update** — `setFlashcardProgress` from `useAppContext()` is called in `handleGotIt` and `handleReset`, never via direct localStorage; AppContext owns the data
-- **Lazy initialiser on `useReducer`** — `(topic) => buildInitialState(...)` form avoids recomputing on every render
+- **Styled components in barrel** — all components in `index.js`; none declared inline in `Home.jsx`
+- **Theme tokens only** — `greenText`/`amberText`/`textSecondary`/`bgSecondary`/`border`/`textTertiary`; no hardcoded hex
+- **`$tone` transient prop** — passes semantic tone signal to `StatValue` without leaking to DOM
+- **`useMemo` for derived values** — `habitStats` is computed with `useMemo`, never `useEffect`
+- **`useAppContext()` for cross-page state** — no prop drilling from App.jsx
+- **`Container` shared component** — wraps stats section just as other pages do
 
 ## Out of Scope
-- Persisting flashcard progress in localStorage (AppContext holds it in session state — BOT-003 defined `flashcardProgress` as session-only)
-- Topic switcher UI (no UI to change topic during session in this ticket)
-- Keyboard navigation or accessibility enhancements
-- Shuffle or random ordering of cards
-- Home Dashboard stats panel (BOT-006)
-- Mood check-in (BOT-007)
-
----
-## Review
-
-**Reviewer:** Claude Code Reviewer Agent
-**Date:** 2026-07-10
-**Ticket:** BOT-005
-
-### Guardrail Results
-
-| ID | Category | Check | Result | Notes |
-|---|---|---|---|---|
-| SEC-1 | Security | No dangerouslySetInnerHTML | PASS | — |
-| SEC-2 | Security | No eval() | PASS | — |
-| SEC-3 | Security | No sensitive data in localStorage | PASS | flashcardProgress is session-only, not stored in localStorage |
-| SEC-4 | Security | No network requests | PASS | — |
-| COR-1 | Correctness | All acceptance criteria addressed | PASS | All 9 criteria covered: card display, flip, Got it, Review again, progress bar, completion screen, AppContext update |
-| COR-2 | Correctness | No scope creep | PASS | — |
-| COR-3 | Correctness | File paths valid | PASS | src/pages/FlashcardsPage/index.js and FlashcardsPage.jsx match CLAUDE.md structure |
-| PAT-1 | Patterns | Styled components in barrel | PASS | All styled components in index.js; none inline in FlashcardsPage.jsx |
-| PAT-2 | Patterns | No hardcoded colors | PASS | All colors use theme tokens (greenBg, greenText, amberBg, amberText, etc.) |
-| PAT-3 | Patterns | No TypeScript | PASS | — |
-| PAT-4 | Patterns | No external state libs | PASS | useReducer + useState only |
-| PAT-5 | Patterns | localStorage via hook only | PASS | flashcardProgress uses session useState; no direct localStorage calls |
-| PAT-6 | Patterns | No misused useEffect | PASS | percent computed inline; no useEffect used |
-| SCO-1 | Scope | No extra features | PASS | — |
-| SCO-2 | Scope | All files listed | PASS | index.js (create) and FlashcardsPage.jsx (modify) both listed |
-| SCO-3 | Scope | No undisclosed packages | PASS | — |
-
-### Verdict: APPROVED
-
-All guardrails passed. Handing off to Developer for implementation.
+- Mood check-in widget (BOT-007)
+- Streak display on the home page
+- Navigation links within the stats cards
+- Animated counters or progress bars on the home page
+- Persisting flashcard session progress across page refreshes (AppContext holds it in session state)
