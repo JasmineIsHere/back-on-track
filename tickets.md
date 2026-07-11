@@ -182,7 +182,7 @@ The Home Dashboard currently shows only a greeting and the date. The README spec
 
 ## [BOT-007] Daily Mood Check-In
 
-**Status:** [ ] Open
+**Status:** [x] In Progress
 **Priority:** Medium
 **Feature Area:** Home Dashboard
 
