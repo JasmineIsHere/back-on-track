@@ -2,7 +2,26 @@ import { useMemo } from "react";
 import HeaderBar from "../../components/HeaderBar/HeaderBar";
 import Container from "../../components/Container";
 import { useAppContext } from "../../context/AppContext";
-import { EmptyPrompt, StatCard, StatLabel, StatsSection, StatValue } from ".";
+import { useLocalStorage } from "../../hooks/useLocalStorage";
+import {
+  EmptyPrompt,
+  MoodButton,
+  MoodGrid,
+  MoodLabel,
+  MoodSection,
+  StatCard,
+  StatLabel,
+  StatsSection,
+  StatValue,
+} from ".";
+
+const MOODS = [
+  { id: "great", label: "😄 Great" },
+  { id: "good", label: "🙂 Good" },
+  { id: "okay", label: "😐 Okay" },
+  { id: "low", label: "😔 Low" },
+  { id: "stressed", label: "😤 Stressed" },
+];
 
 const HomePage = () => {
   const { habits, flashcardProgress } = useAppContext();
@@ -23,6 +42,9 @@ const HomePage = () => {
   };
 
   const user = "John";
+
+  const todayKey = `mood-${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const [selectedMood, setSelectedMood] = useLocalStorage(todayKey, null);
 
   const habitStats = useMemo(() => {
     const total = habits.length;
@@ -75,6 +97,20 @@ const HomePage = () => {
             )}
           </StatCard>
         </StatsSection>
+        <MoodSection>
+          <MoodLabel>How are you feeling today?</MoodLabel>
+          <MoodGrid>
+            {MOODS.map((mood) => (
+              <MoodButton
+                key={mood.id}
+                $selected={selectedMood === mood.id}
+                onClick={() => setSelectedMood(mood.id)}
+              >
+                {mood.label}
+              </MoodButton>
+            ))}
+          </MoodGrid>
+        </MoodSection>
       </Container>
     </>
   );
