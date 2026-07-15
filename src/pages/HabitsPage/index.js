@@ -69,3 +69,26 @@ export const SubmitButton = styled.button`
     background-color: ${(props) => props.theme.bgTertiary};
   }
 `;
+
+export const ProgressTrack = styled.div`
+  width: 100%;
+  height: 8px;
+  background-color: ${({ theme }) => theme.bgSecondary};
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+`;
+
+export const ProgressFill = styled.div`
+  height: 100%;
+  width: ${({ $percent }) => $percent}%;
+  background-color: ${({ theme }) => theme.greenStrong};
+  border-radius: 4px;
+  transition: width 0.3s ease;
+`;
+
+export const StreakBadge = styled.span`
+  font-size: 0.875rem;
+  color: ${({ theme }) => theme.textSecondary};
+  margin-left: auto;
+`;
